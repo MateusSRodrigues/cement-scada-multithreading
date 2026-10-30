@@ -1,0 +1,9 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ExibicaoProcesso/ExibicaoProcesso.vcxproj" Id="16afd144-674c-45e4-85a0-647f8a72b8f3" />
+  <Project Path="GestaoProducao/GestaoProducao.vcxproj" Id="90b853fc-e3e3-4eca-849b-d84dd6e58d75" />
+  <Project Path="Principal/Principal.vcxproj" Id="1230560f-9553-4f7b-b842-f874f065ffe8" />
+</Solution>
