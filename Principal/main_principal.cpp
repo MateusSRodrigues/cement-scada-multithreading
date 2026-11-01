@@ -1,6 +1,7 @@
 #include "common.h"
 #include "tarefa_pcp.h" 
 #include "tarefa_supervisorio.h"
+#include "tarefa_teclado.h"
 
 #include <pthread.h>
 #include <cstdio>
@@ -39,9 +40,30 @@ int main(void) {
         std::printf("Erro fatal: Falha ao criar thread do PCP!\n");
     }
 
+    // Cria a estrutura que centraliza os handles para o teclado
+    HandlesTeclado handles = {};
+    handles.hEvRunSup = hEvRunSup;
+    handles.hEvTermSup = hEvTermSup;
+    handles.hEvRunPCP = hEvRunPCP;
+    handles.hEvTermPCP = hEvTermPCP;
+
+    // A função bloqueará a thread principal lendo o teclado
+    // Só retornará quando o utilizador pressionar ESC
+    ExecutarTarefaTeclado(&handles);
+
+    // Quando o ESC for pressionado, os eventos de término já foram sinalizados
+    std::printf("Aguardando encerramento das threads...\n");
     pthread_join(tSupervisorio, nullptr);
-    //SetEvent(hEvTermPCP);
     pthread_join(tPCP, nullptr);
+
+    CloseHandle(hEvRunSup);
+    CloseHandle(hEvTermSup);
+    CloseHandle(hEvRunPCP);
+    CloseHandle(hEvTermPCP);
+
+    //pthread_join(tSupervisorio, nullptr);
+    //SetEvent(hEvTermPCP);
+    //pthread_join(tPCP, nullptr);
     //CloseHandle(hEvRunPCP);
     //CloseHandle(hEvTermPCP);
 
