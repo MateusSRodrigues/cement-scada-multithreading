@@ -153,7 +153,13 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lista_circular1.cpp" />
     <ClCompile Include="main_principal.cpp" />
+    <ClCompile Include="tarefa_pcp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="lista_circular1.h" />
+    <ClInclude Include="tarefa_pcp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
