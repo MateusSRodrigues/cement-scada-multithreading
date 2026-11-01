@@ -156,10 +156,12 @@
     <ClCompile Include="lista_circular1.cpp" />
     <ClCompile Include="main_principal.cpp" />
     <ClCompile Include="tarefa_pcp.cpp" />
+    <ClCompile Include="tarefa_supervisorio.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lista_circular1.h" />
     <ClInclude Include="tarefa_pcp.h" />
+    <ClInclude Include="tarefa_supervisorio.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
