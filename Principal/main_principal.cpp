@@ -2,7 +2,7 @@
 #include "lista_circular1.h"
 #include "tarefa_supervisorio.h"
 #include "tarefa_pcp.h"
-//#include "tarefa_retirada.h"
+#include "tarefa_retirada.h"
 #include "tarefa_teclado.h"
 
 #include <pthread.h>
@@ -90,8 +90,8 @@ int main(){
     //  Cria as 3 threads usando Pthreads-Win32
     pthread_t tSup, tPCP, tRet;
     if (pthread_create(&tSup, nullptr, ThreadSupervisorio, &ctrlSup) != 0 ||
-        pthread_create(&tPCP, nullptr, ThreadPCP, &ctrlPCP) != 0 /* ||
-        //pthread_create(&tRet, nullptr, ThreadRetirada, &ctrlRet) != 0*/) {
+        pthread_create(&tPCP, nullptr, ThreadPCP, &ctrlPCP) != 0  ||
+        pthread_create(&tRet, nullptr, ThreadRetirada, &ctrlRet) != 0) {
         std::printf("[PRINCIPAL] ERRO FATAL: Falha ao criar threads via Pthreads-Win32!\n");
         return 1;
     }

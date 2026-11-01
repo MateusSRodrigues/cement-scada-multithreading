@@ -3,6 +3,6 @@
 #define TAREFA_RETIRADA_H
 
 // Assinatura da tarefa consumidora exigida pela biblioteca Pthreads
-void* TarefaRetirada(void* arg);
+void* ThreadRetirada(void* arg);
 
 #endif // TAREFA_RETIRADA_H

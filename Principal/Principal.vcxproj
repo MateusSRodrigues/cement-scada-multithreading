@@ -161,7 +161,9 @@
     <ClCompile Include="tarefa_teclado.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="lista_encadeada.h" />
     <ClInclude Include="tarefa_pcp.h" />
+    <ClInclude Include="tarefa_retirada.h" />
     <ClInclude Include="tarefa_supervisorio.h" />
     <ClInclude Include="tarefa_teclado.h" />
   </ItemGroup>

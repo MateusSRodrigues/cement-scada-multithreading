@@ -5,7 +5,7 @@
 extern bool RetirarMensagemLista1(ItemMensagem* itemDestino, HANDLE hEvTerm);
 
 // Assinatura padrão exigida pela biblioteca Pthreads
-void* TarefaRetirada(void* arg) {
+void* ThreadRetirada(void* arg) {
     // Cast obrigatório em C++ para aceder aos handles da tarefa
     ControleTarefa* controle = static_cast<ControleTarefa*>(arg);
     ItemMensagem itemRecebido;
