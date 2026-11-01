@@ -153,14 +153,14 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="lista_encadeada.cpp" />
+    <ClCompile Include="lista_circular1.cpp" />
     <ClCompile Include="main_principal.cpp" />
     <ClCompile Include="tarefa_pcp.cpp" />
-    <ClCompile Include="tarefa_retirada.cpp" />
     <ClCompile Include="tarefa_supervisorio.cpp" />
     <ClCompile Include="tarefa_teclado.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="lista_circular1.h" />
     <ClInclude Include="tarefa_pcp.h" />
     <ClInclude Include="tarefa_supervisorio.h" />
     <ClInclude Include="tarefa_teclado.h" />
