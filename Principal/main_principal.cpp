@@ -1,5 +1,5 @@
 #include "../include/common.h"
-#include "lista_circular1.h"
+#include "lista_encadeada.h"
 #include "tarefa_supervisorio.h"
 #include "tarefa_pcp.h"
 #include "tarefa_retirada.h"
@@ -104,7 +104,7 @@ int main(){
     std::printf("[PRINCIPAL] Aguardando encerramento das threads locais...\n");
     pthread_join(tSup, nullptr);
     pthread_join(tPCP, nullptr);
-    //pthread_join(tRet, nullptr);
+    pthread_join(tRet, nullptr);
 
     // Aguarda o encerramento dos processos filhos das duas telas
     if (exibRodando) {

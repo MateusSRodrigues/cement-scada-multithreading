@@ -37,23 +37,26 @@ void DestruirLista1() {
 }
 
 bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nomeProdutor) {
-
-    HANDLE hEspera[2] = { hEvTerm, hSemVagasL1 };
-
-    // Se não há vaga (timeout = 0), apenas avisa no console, depois aguarda bloqueado
-    if (WaitForSingleObject(hSemVagasL1, 0) == WAIT_TIMEOUT) {
-        printf("[%s] Lista Cheia! Aguardando vaga para depositar...\n", nomeProdutor);
-        fflush(stdout);
-    }
-
-    // Aguarda vagar espaço (hSemVagasL1) OU o comando de encerramento (hEvTerm)
-    DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, INFINITE);
-    if (dwWait == WAIT_OBJECT_0) {
-        // Encerramento (ESC) acionado enquanto esperava vaga
+    // 1. Verifica se o ESC ja foi acionado antes de tentar depositar
+    if (WaitForSingleObject(hEvTerm, 0) == WAIT_OBJECT_0) {
         return false;
     }
 
-    // Exclusão Mútua para manipulação dos ponteiros
+    // 2. Tenta obter 1 vaga imediatamente (timeout = 0).
+    // Se retornar WAIT_OBJECT_0, a vaga JA foi consumida com sucesso!
+    if (WaitForSingleObject(hSemVagasL1, 0) == WAIT_TIMEOUT) {
+        printf("[%s] Lista Cheia! Aguardando vaga para depositar...\n", nomeProdutor);
+        fflush(stdout);
+
+        // So executa o WaitForMultipleObjects se realmente nao havia vaga no teste acima
+        HANDLE hEspera[2] = { hEvTerm, hSemVagasL1 };
+        DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, INFINITE);
+        if (dwWait == WAIT_OBJECT_0) {
+            return false; // ESC acionado enquanto esperava vaga
+        }
+    }
+
+    // Exclusao mutua para manipulacao dos ponteiros da lista encadeada
     pthread_mutex_lock(&mtxLista1);
 
     Node* novoNo = new Node(item);
@@ -66,12 +69,11 @@ bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nome
         lista1.tail = novoNo;
     }
     lista1.count++;
-
+    //printf("Dados na lista: [%i]\n\n", lista1.count);
     pthread_mutex_unlock(&mtxLista1);
 
-    // Sinaliza que há um novo item disponível para o Consumidor
+    // Sinaliza que ha um novo item disponivel para a Tarefa de Retirada
     ReleaseSemaphore(hSemItensL1, 1, nullptr);
-
     return true;
 }
 
@@ -94,7 +96,7 @@ bool RetirarMensagemLista1(ItemMensagem* itemDestino, HANDLE hEvTerm) {
         lista1.tail = nullptr;
     }
     lista1.count--;
-
+    //printf("Dados na lista: [%i]\n\n", lista1.count);
     delete noRemovido; // Libera a memória alocada via new
 
     pthread_mutex_unlock(&mtxLista1);

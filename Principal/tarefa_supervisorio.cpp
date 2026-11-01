@@ -1,5 +1,5 @@
 #include "tarefa_supervisorio.h"
-#include "lista_circular1.h"
+#include "lista_encadeada.h"
 
 #include <random>
 #include <cstdio>

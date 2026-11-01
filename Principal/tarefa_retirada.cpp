@@ -20,6 +20,7 @@ void* ThreadRetirada(void* arg) {
 
         // 2. Aguarda e retira item (bloqueia automaticamente se a lista estiver vazia)
         if (!RetirarMensagemLista1(&itemRecebido, controle->hEvTerm)) {
+            //printf("[LISTA  VAZIA! AGUARDANDO PRODUTORES] \n");
             break; // ESC premido enquanto aguardava por mensagens
         }
 
@@ -30,6 +31,7 @@ void* ThreadRetirada(void* arg) {
         else if (itemRecebido.tipo == TIPO_ESCALONAMENTO_PCP) {
             printf("[RETIRADA - PCP ] %s\n", itemRecebido.texto);
         }
+
     }
 
     printf("[%s] Encerrando thread...\n", controle->nomeTarefa);
