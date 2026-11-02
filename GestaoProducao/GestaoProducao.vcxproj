@@ -96,6 +96,9 @@
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
+    <CustomBuildStep>
+      <Command>$(OutDir):xcopy /y /d "C:\Program Files\pthreads-w32-2-9-1-release\Pre-built.2\dll\x86\pthreadVC2.dll" "$(OutDir)"</Command>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -133,6 +136,9 @@
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
+    <CustomBuildStep>
+      <Command>$(OutDir):xcopy /y /d "C:\Program Files\pthreads-w32-2-9-1-release\Pre-built.2\dll\x86\pthreadVC2.dll" "$(OutDir)"</Command>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
