@@ -1,86 +1,91 @@
 #include "tarefa_teclado.h"
-#include <conio.h> // Necessário para a função _getch()
+#include "lista_encadeada.h"
+#include <conio.h>
 #include <cstdio>
+#include <cctype>
 
 void ExecutarTarefaTeclado(HandlesTeclado* handles) {
-    // Todas as tarefas iniciam no estado desbloqueado
+    // Todas as tarefas iniciam com os bloqueios desligados (plena execucao)
     bool runSup = true, runPcp = true, runRet = true, runExib = true, runGest = true;
 
-    std::printf("\n[TECLADO] Controle iniciado.\n");
-    std::printf("-> Pressione 's', 'm', 'r', 'p' ou 'g' para ligar/desligar as tarefas.\n");
-    std::printf("-> Pressione ESC para encerrar todas as threads.\n\n");
+    LogConsolePrincipal("\n[TECLADO] Controle iniciado (todas as tarefas desbloqueadas).\n");
+    LogConsolePrincipal("-> Pressione 's' (Supervisorio), 'm' (PCP), 'r' (Retirada), 'p' (Exibicao) ou 'g' (Gestao) para bloquear/desbloquear.\n");
+    LogConsolePrincipal("-> Pressione '1' ou '2' para limpeza de tela (Etapa 2).\n");
+    LogConsolePrincipal("-> Pressione ESC para encerrar toda a aplicacao.\n\n");
 
     while (true) {
-        int tecla = _getch(); // Aguarda indefinidademente por um caractere do teclado
+        int tecla = _getch();
+
+        // Ignora o prefixo de teclas especiais/setas do teclado (0 ou 0xE0)
+        if (tecla == 0 || tecla == 0xE0) {
+            (void)_getch();
+            continue;
+        }
 
         // Encerramento global (ESC)
         if (tecla == TECLA_ENCERRAR_ESC) {
-            std::printf("\n[TECLADO] Comando ESC detectado! Iniciando encerramento global...\n");
-            
-            // Dispara todos os eventos de término simultaneamente
-            if (handles->hEvTermSup) SetEvent(handles->hEvTermSup);
-            if (handles->hEvTermPCP) SetEvent(handles->hEvTermPCP);
-            if (handles->hEvTermRet) SetEvent(handles->hEvTermRet);
+            LogConsolePrincipal("\n[TECLADO] Comando ESC detectado! Sinalizando encerramento global...\n");
+
+            if (handles->hEvTermSup)  SetEvent(handles->hEvTermSup);
+            if (handles->hEvTermPCP)  SetEvent(handles->hEvTermPCP);
+            if (handles->hEvTermRet)  SetEvent(handles->hEvTermRet);
             if (handles->hEvTermExib) SetEvent(handles->hEvTermExib);
             if (handles->hEvTermGest) SetEvent(handles->hEvTermGest);
-            
-            break; // Quebra o loop e devolve o controlo à main()
+
+            break;
         }
 
-        // Alternância de estado (Toggle) das tarefas
-        switch (tecla) {
-            case TECLA_BLK_SUPERVISORIO:
-                if (!handles->hEvRunSup) break;
-                runSup = !runSup;
-                if (runSup) {
-                    std::printf("[TECLADO] Supervisorio DESBLOQUEADO.\n");
-                    SetEvent(handles->hEvRunSup);
-                } else {
-                    std::printf("[TECLADO] Supervisorio BLOQUEADO.\n");
-                    ResetEvent(handles->hEvRunSup);
-                }
-                break;
+        // Converte para minuscula para suportar Caps Lock ligado
+        char cmd = static_cast<char>(std::tolower(static_cast<unsigned char>(tecla)));
 
-            case TECLA_BLK_PCP:
-                if (!handles->hEvRunPCP) break;
-                runPcp = !runPcp;
-                if (runPcp) {
-                    std::printf("[TECLADO] PCP DESBLOQUEADO.\n");
-                    SetEvent(handles->hEvRunPCP);
-                } else {
-                    std::printf("[TECLADO] PCP BLOQUEADO.\n");
-                    ResetEvent(handles->hEvRunPCP);
-                }
-                break;
+        switch (cmd) {
+        case TECLA_BLK_SUPERVISORIO: // 's'
+            if (!handles->hEvRunSup) break;
+            runSup = !runSup;
+            if (runSup) SetEvent(handles->hEvRunSup); else ResetEvent(handles->hEvRunSup);
+            LogConsolePrincipal("[TECLADO] Comando 's': Tarefa do Supervisorio %s.\n",
+                runSup ? "DESBLOQUEADA" : "BLOQUEADA");
+            break;
 
-            case TECLA_BLK_RETIRADA:
-                if (!handles->hEvRunRet) break;
-                runRet = !runRet;
-                if (runRet) SetEvent(handles->hEvRunRet); else ResetEvent(handles->hEvRunRet);
-                std::printf("[TECLADO] Tarefa Retirada %s.\n", runRet ? "DESBLOQUEADA" : "BLOQUEADA");
-                break;
+        case TECLA_BLK_PCP: // 'm'
+            if (!handles->hEvRunPCP) break;
+            runPcp = !runPcp;
+            if (runPcp) SetEvent(handles->hEvRunPCP); else ResetEvent(handles->hEvRunPCP);
+            LogConsolePrincipal("[TECLADO] Comando 'm': Tarefa do PCP %s.\n",
+                runPcp ? "DESBLOQUEADA" : "BLOQUEADA");
+            break;
 
-            case TECLA_BLK_EXIB_PROC:
-                if (!handles->hEvRunExib) break;
-                runExib = !runExib;
-                if (runExib) SetEvent(handles->hEvRunExib); else ResetEvent(handles->hEvRunExib);
-                std::printf("[TECLADO] Exibicao de Processo %s.\n", runExib ? "DESBLOQUEADA" : "BLOQUEADA");
-                break;
+        case TECLA_BLK_RETIRADA: // 'r'
+            if (!handles->hEvRunRet) break;
+            runRet = !runRet;
+            if (runRet) SetEvent(handles->hEvRunRet); else ResetEvent(handles->hEvRunRet);
+            LogConsolePrincipal("[TECLADO] Comando 'r': Tarefa de Retirada %s.\n",
+                runRet ? "DESBLOQUEADA" : "BLOQUEADA");
+            break;
 
-            case TECLA_BLK_GEST_PROD:
-                if (!handles->hEvRunGest) break;
-                runGest = !runGest;
-                if (runGest) SetEvent(handles->hEvRunGest); else ResetEvent(handles->hEvRunGest);
-                std::printf("[TECLADO] Gestao de Producao %s.\n", runGest ? "DESBLOQUEADA" : "BLOQUEADA");
-                break;
+        case TECLA_BLK_EXIB_PROC: // 'p'
+            if (!handles->hEvRunExib) break;
+            runExib = !runExib;
+            if (runExib) SetEvent(handles->hEvRunExib); else ResetEvent(handles->hEvRunExib);
+            LogConsolePrincipal("[TECLADO] Comando 'p': Exibicao de Dados de Processo %s.\n",
+                runExib ? "DESBLOQUEADA" : "BLOQUEADA");
+            break;
 
-            case TECLA_LIMPA_EXIB_PROC:
-            case TECLA_LIMPA_GEST_PROD:
-                std::printf("[TECLADO] Tecla '%c' registada (Comando IPC de limpeza sera enviado na Etapa 2).\n", tecla);
-                break;
+        case TECLA_BLK_GEST_PROD: // 'g'
+            if (!handles->hEvRunGest) break;
+            runGest = !runGest;
+            if (runGest) SetEvent(handles->hEvRunGest); else ResetEvent(handles->hEvRunGest);
+            LogConsolePrincipal("[TECLADO] Comando 'g': Gestao da Producao %s.\n",
+                runGest ? "DESBLOQUEADA" : "BLOQUEADA");
+            break;
 
-            default:
-                break; // Ignora quaisquer outras teclas
+        case TECLA_LIMPA_EXIB_PROC: // '1'
+        case TECLA_LIMPA_GEST_PROD: // '2'
+            LogConsolePrincipal("[TECLADO] Tecla '%c' registrada (IPC de limpeza de console sera ativado na Etapa 2).\n", cmd);
+            break;
+
+        default:
+            break;
         }
     }
 }

@@ -4,16 +4,22 @@
 
 #include "../include/common.h"
 
-// Inicializa os semaforos e o mutex da lista
+// Inicializa os semaforos e os mutexes da lista e do console
 void InicializarLista1();
 
 // Esvazia a lista e destroi os objetos de sincronismo
 void DestruirLista1();
 
-// Insere item na lista. Retorna false se ESC for premido durante a espera.
-bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nomeProdutor);
+// Imprime mensagens no console principal com exclusao mutua via Pthreads
+void LogConsolePrincipal(const char* formato, ...);
 
-// Remove item da lista. Retorna false se ESC for premido durante a espera.
-bool RetirarMensagemLista1(ItemMensagem* itemDestino, HANDLE hEvTerm);
+// Verifica bloqueio (hEvRun) ou encerramento (hEvTerm) usando log thread-safe
+bool AguardarPermissaoThreadPrincipal(ControleTarefa* ctrl);
+
+// Insere item na lista respeitando bloqueio e encerramento. Retorna false se ESC for acionado.
+bool DepositarMensagemLista1(const ItemMensagem& item, ControleTarefa* ctrl);
+
+// Remove item da lista respeitando bloqueio e encerramento. Retorna false se ESC for acionado.
+bool RetirarMensagemLista1(ItemMensagem* itemDestino, ControleTarefa* ctrl);
 
 #endif // LISTA_ENCADEADA_H

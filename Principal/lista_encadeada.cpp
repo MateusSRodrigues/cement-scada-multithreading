@@ -1,24 +1,28 @@
-#include "common.h"
+#include "lista_encadeada.h"
 #include <pthread.h>
+#include <cstdio>
+#include <cstdarg>
 
-// Instâncias globais da lista encadeada e dos mecanismos de sincronismo
-ListaEncadeada1 lista1;
-pthread_mutex_t mtxLista1;
-HANDLE hSemVagasL1;
-HANDLE hSemItensL1;
+// Instancias globais da lista encadeada e dos mecanismos de sincronismo
+static ListaEncadeada1 lista1;
+static pthread_mutex_t mtxLista1;
+static pthread_mutex_t mtxConsole;
+static HANDLE hSemVagasL1 = nullptr;
+static HANDLE hSemItensL1 = nullptr;
 
 void InicializarLista1() {
     pthread_mutex_init(&mtxLista1, nullptr);
+    pthread_mutex_init(&mtxConsole, nullptr);
 
-    // Semáforo para contar vagas livres na lista (inicia com CAPACIDADE_LISTA_1)
+    // Semaforo para contar vagas livres na lista (inicia com CAPACIDADE_LISTA_1 = 100)
     hSemVagasL1 = CreateSemaphoreA(nullptr, CAPACIDADE_LISTA_1, CAPACIDADE_LISTA_1, SEM_L1_VAGAS);
 
-    // Semáforo para contar itens disponíveis na lista (inicia com 0)
+    // Semaforo para contar itens disponiveis na lista (inicia com 0)
     hSemItensL1 = CreateSemaphoreA(nullptr, 0, CAPACIDADE_LISTA_1, SEM_L1_ITENS);
 }
 
 void DestruirLista1() {
-    // Esvazia a memória de nós remanescentes (caso o encerramento ocorra com lista cheia)
+    // Esvazia a memoria de nos remanescentes (caso o encerramento ocorra com itens na lista)
     pthread_mutex_lock(&mtxLista1);
     Node* atual = lista1.head;
     while (atual != nullptr) {
@@ -32,34 +36,93 @@ void DestruirLista1() {
     pthread_mutex_unlock(&mtxLista1);
 
     pthread_mutex_destroy(&mtxLista1);
-    CloseHandle(hSemVagasL1);
-    CloseHandle(hSemItensL1);
+    pthread_mutex_destroy(&mtxConsole);
+
+    if (hSemVagasL1) CloseHandle(hSemVagasL1);
+    if (hSemItensL1) CloseHandle(hSemItensL1);
 }
 
-bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nomeProdutor) {
-    // 1. Verifica se o ESC ja foi acionado antes de tentar depositar
-    if (WaitForSingleObject(hEvTerm, 0) == WAIT_OBJECT_0) {
+void LogConsolePrincipal(const char* formato, ...) {
+    pthread_mutex_lock(&mtxConsole);
+    va_list args;
+    va_start(args, formato);
+    std::vprintf(formato, args);
+    va_end(args);
+    std::fflush(stdout);
+    pthread_mutex_unlock(&mtxConsole);
+}
+
+bool AguardarPermissaoThreadPrincipal(ControleTarefa* ctrl) {
+    if (WaitForSingleObject(ctrl->hEvTerm, 0) == WAIT_OBJECT_0) {
         return false;
     }
 
-    // 2. Tenta obter 1 vaga imediatamente (timeout = 0).
-    // Se retornar WAIT_OBJECT_0, a vaga JA foi consumida com sucesso!
-    if (WaitForSingleObject(hSemVagasL1, 0) == WAIT_TIMEOUT) {
-        printf("[%s] Lista Cheia! Aguardando vaga para depositar...\n", nomeProdutor);
-        fflush(stdout);
+    if (WaitForSingleObject(ctrl->hEvRun, 0) == WAIT_TIMEOUT) {
+        LogConsolePrincipal("[%s] ESTADO: BLOQUEADA pelo comando do teclado. Aguardando liberacao ou ESC...\n",
+            ctrl->nomeTarefa);
 
-        // So executa o WaitForMultipleObjects se realmente nao havia vaga no teste acima
-        HANDLE hEspera[2] = { hEvTerm, hSemVagasL1 };
-        DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, INFINITE);
-        if (dwWait == WAIT_OBJECT_0) {
-            return false; // ESC acionado enquanto esperava vaga
+        HANDLE hEventos[2] = { ctrl->hEvTerm, ctrl->hEvRun };
+        DWORD resultado = WaitForMultipleObjects(2, hEventos, FALSE, INFINITE);
+
+        if (resultado == WAIT_OBJECT_0 || resultado == WAIT_FAILED) {
+            LogConsolePrincipal("[%s] Notificacao de TERMINO (ESC) recebida durante bloqueio. Encerrando...\n",
+                ctrl->nomeTarefa);
+            return false;
+        }
+
+        if (WaitForSingleObject(ctrl->hEvTerm, 0) == WAIT_OBJECT_0) {
+            return false;
+        }
+
+        LogConsolePrincipal("[%s] ESTADO: DESBLOQUEADA. Retomando execucao normal.\n",
+            ctrl->nomeTarefa);
+    }
+    return true;
+}
+
+bool DepositarMensagemLista1(const ItemMensagem& item, ControleTarefa* ctrl) {
+    HANDLE hEspera[2] = { ctrl->hEvTerm, hSemVagasL1 };
+    bool avisoListaCheiaImpresso = false;
+
+    while (true) {
+        // 1. Garante que a tarefa nao esta bloqueada nem recebeu ESC
+        if (!AguardarPermissaoThreadPrincipal(ctrl)) {
+            return false;
+        }
+
+        // 2. Tenta obter 1 vaga imediatamente (timeout = 0)
+        DWORD dwImmediate = WaitForSingleObject(hSemVagasL1, 0);
+        if (dwImmediate == WAIT_OBJECT_0) {
+            break; // Vaga adquirida imediatamente!
+        }
+
+        // Se nao havia vaga imediata, sinaliza Lista Cheia uma unica vez por bloqueio
+        if (!avisoListaCheiaImpresso) {
+            LogConsolePrincipal("[%s] Lista Circular 1 CHEIA (%d itens)! Aguardando vaga livre...\n",
+                ctrl->nomeTarefa, CAPACIDADE_LISTA_1);
+            avisoListaCheiaImpresso = true;
+        }
+
+        // 3. Aguarda vaga ou ESC com timeout curto (100 ms) para responder a bloqueios do teclado
+        DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, 100);
+        if (dwWait == WAIT_OBJECT_0 || dwWait == WAIT_FAILED) {
+            return false; // ESC acionado
+        }
+        if (dwWait == WAIT_OBJECT_0 + 1) {
+            // Se o usuario bloqueou a thread enquanto ela esperava vaga, devolve a vaga e bloqueia
+            if (WaitForSingleObject(ctrl->hEvRun, 0) == WAIT_TIMEOUT) {
+                ReleaseSemaphore(hSemVagasL1, 1, nullptr);
+                continue;
+            }
+            break; // Vaga adquirida com tarefa desbloqueada!
         }
     }
 
-    // Exclusao mutua para manipulacao dos ponteiros da lista encadeada
-    pthread_mutex_lock(&mtxLista1);
-
+    // Aloca o no fora da secao critica para minimizar o tempo de retencao do mutex
     Node* novoNo = new Node(item);
+
+    // Exclusao mutua via Pthreads apenas para manipulacao dos ponteiros da lista
+    pthread_mutex_lock(&mtxLista1);
     if (lista1.tail == nullptr) {
         lista1.head = novoNo;
         lista1.tail = novoNo;
@@ -69,7 +132,6 @@ bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nome
         lista1.tail = novoNo;
     }
     lista1.count++;
-    //printf("Dados na lista: [%i]\n\n", lista1.count);
     pthread_mutex_unlock(&mtxLista1);
 
     // Sinaliza que ha um novo item disponivel para a Tarefa de Retirada
@@ -77,32 +139,53 @@ bool DepositarMensagemLista1(ItemMensagem item, HANDLE hEvTerm, const char* nome
     return true;
 }
 
-bool RetirarMensagemLista1(ItemMensagem* itemDestino, HANDLE hEvTerm) {
-    HANDLE hEspera[2] = { hEvTerm, hSemItensL1 };
+bool RetirarMensagemLista1(ItemMensagem* itemDestino, ControleTarefa* ctrl) {
+    HANDLE hEspera[2] = { ctrl->hEvTerm, hSemItensL1 };
 
-    // Aguarda um item ser depositado (hSemItensL1) OU o comando de encerramento (hEvTerm)
-    DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, INFINITE);
-    if (dwWait == WAIT_OBJECT_0) {
+    while (true) {
+        // 1. Garante que a Tarefa de Retirada nao foi bloqueada pela tecla 'r' nem recebeu ESC
+        if (!AguardarPermissaoThreadPrincipal(ctrl)) {
+            return false;
+        }
+
+        // 2. Aguarda item disponivel ou ESC com timeout de 100 ms.
+        // O timeout curto permite detectar imediatamente a tecla 'r' mesmo com a lista vazia!
+        DWORD dwWait = WaitForMultipleObjects(2, hEspera, FALSE, 100);
+        if (dwWait == WAIT_OBJECT_0 || dwWait == WAIT_FAILED) {
+            return false; // ESC acionado
+        }
+
+        if (dwWait == WAIT_OBJECT_0 + 1) {
+            // Verifica se a tecla 'r' bloqueou a tarefa no exato instante em que o item chegou
+            if (WaitForSingleObject(ctrl->hEvRun, 0) == WAIT_TIMEOUT) {
+                ReleaseSemaphore(hSemItensL1, 1, nullptr);
+                continue;
+            }
+            break; // Item consumido do semaforo com sucesso!
+        }
+    }
+
+    // Exclusao mutua via Pthreads apenas para desengatar o no da cabeca da fila
+    pthread_mutex_lock(&mtxLista1);
+    Node* noRemovido = lista1.head;
+    if (noRemovido != nullptr) {
+        lista1.head = noRemovido->next;
+        if (lista1.head == nullptr) {
+            lista1.tail = nullptr;
+        }
+        lista1.count--;
+    }
+    pthread_mutex_unlock(&mtxLista1);
+
+    if (noRemovido == nullptr) {
         return false;
     }
 
-    pthread_mutex_lock(&mtxLista1);
+    // Copia os dados e libera a memoria fora da secao critica
+    *itemDestino = noRemovido->item;
+    delete noRemovido;
 
-    Node* noRemovido = lista1.head;
-    *itemDestino = noRemovido->item; // Copia a string e o tipo da mensagem
-
-    lista1.head = noRemovido->next;
-    if (lista1.head == nullptr) {
-        lista1.tail = nullptr;
-    }
-    lista1.count--;
-    //printf("Dados na lista: [%i]\n\n", lista1.count);
-    delete noRemovido; // Libera a memória alocada via new
-
-    pthread_mutex_unlock(&mtxLista1);
-
-    // Sinaliza aos Produtores que uma nova vaga foi aberta
+    // Sinaliza aos Produtores que uma nova vaga foi aberta na Lista 1
     ReleaseSemaphore(hSemVagasL1, 1, nullptr);
-
     return true;
 }

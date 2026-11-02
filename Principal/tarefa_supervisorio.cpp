@@ -1,22 +1,20 @@
 #include "tarefa_supervisorio.h"
 #include "lista_encadeada.h"
-
 #include <random>
 #include <cstdio>
 #include <cstring>
 
-// Gerador de números pseudoaleatórios em ponto flutuante
+// Gerador de numeros pseudoaleatorios em ponto flutuante com semente dinamica
 static float GerarRealAleatorio(float minVal, float maxVal) {
-    static thread_local std::mt19937 gerador(12345); // Semente local da thread
+    static thread_local std::mt19937 gerador(std::random_device{}() ^ GetCurrentThreadId());
     std::uniform_real_distribution<float> dist(minVal, maxVal);
     return dist(gerador);
 }
 
 void* ThreadSupervisorio(void* arg) {
-    // 1. Recupera os handles de sincronização passados pelo Processo Principal
     ControleTarefa* ctrl = static_cast<ControleTarefa*>(arg);
     if (!ctrl) {
-        std::printf("[SUPERVISORIO] Erro: Ponteiro de controle nulo!\n");
+        LogConsolePrincipal("[SUPERVISORIO] Erro: Ponteiro de controle nulo!\n");
         return nullptr;
     }
 
@@ -25,53 +23,49 @@ void* ThreadSupervisorio(void* arg) {
     ItemMensagem item{};
     item.tipo = TIPO_DADOS_PROCESSO; // Sempre tipo 1
 
-    std::printf("[%s] Thread iniciada com sucesso.\n", ctrl->nomeTarefa);
+    LogConsolePrincipal("[%s] Thread iniciada com sucesso.\n", ctrl->nomeTarefa);
 
     while (true) {
-        // 2. Verifica se a tarefa foi bloqueada pela tecla 's' ou se recebeu ESC
-        if (!AguardarPermissaoExecucaoOuTermino(ctrl->hEvRun, ctrl->hEvTerm, ctrl->nomeTarefa)) {
-            break; // Comando ESC detectado: encerra a thread imediatamente
-        }
-
-        // 3. Gera valores aleatórios coerentes com o processo industrial de cimento
-        // Faixas simuladas com formato fixo NNN.N (5 caracteres cada)
-        float tz1  = GerarRealAleatorio(100.0f, 999.9f); // Zona 1 (°C)
-        float tz2  = GerarRealAleatorio(100.0f, 999.9f); // Zona 2 (°C)
-        float tz3  = GerarRealAleatorio(100.0f, 999.9f); // Zona 3 (°C)
-        float vol  = GerarRealAleatorio(100.0f, 999.9f); // Volume (m³)
-        float pres = GerarRealAleatorio(10.0f,  99.9f);  // Pressão (kgf/m²) formatada como 0NN.N
-
-        // 4. Obtém o timestamp corrente com precisão de milissegundos (HH:MM:SS.MSS - 12 chars)
-        ObterTimestampAtual(timestamp, sizeof(timestamp), true);
-
-        // 5. Monta a string no formato exato: TIPO/NSEQ/TZ1/TZ2/TZ3/VOL/PRES/TIMESTAMP
-        // Tamanhos: 1 + 1 + 5 + 1 + 5 + 1 + 5 + 1 + 5 + 1 + 5 + 1 + 5 + 1 + 12 = 50 caracteres
-        int len = std::snprintf(item.texto, sizeof(item.texto),
-                                "1/%05d/%05.1f/%05.1f/%05.1f/%05.1f/%05.1f/%s",
-                                nseq, tz1, tz2, tz3, vol, pres, timestamp);
-
-        // Validação defensiva do tamanho exigido pelo enunciado
-        if (len != TAM_MSG_SUPERVISORIO) {
-            std::printf("[SUPERVISORIO] ALERTA: Mensagem com tamanho invalido (%d chars): %s\n", len, item.texto);
-        }
-
-        // 6. Deposita a mensagem na Lista Circular 1 (bloqueia com aviso se estiver cheia)
-        if (!DepositarMensagemLista1(item, ctrl->hEvTerm, ctrl->nomeTarefa)) {
-            // Se retornou false, o usuário pressionou ESC enquanto a lista estava cheia
+        // 1. Verifica se a tarefa foi bloqueada pela tecla 's' ou se recebeu ESC
+        if (!AguardarPermissaoThreadPrincipal(ctrl)) {
             break;
         }
 
-        // 7. Incrementa o sequencial (volta a 1 após 99999)
-        nseq++;
-        if (nseq > NSEQ_MAX) {
-            nseq = NSEQ_MIN;
+        // 2. Gera valores aleatorios nas faixas com formato NNN.N (5 caracteres cada)
+        float tz1 = GerarRealAleatorio(100.0f, 999.9f); // Temperatura Zona 1 (C)
+        float tz2 = GerarRealAleatorio(100.0f, 999.9f); // Temperatura Zona 2 (C)
+        float tz3 = GerarRealAleatorio(100.0f, 999.9f); // Temperatura Zona 3 (C)
+        float vol = GerarRealAleatorio(100.0f, 999.9f); // Volume de clinquer (m3)
+        float pres = GerarRealAleatorio(10.0f, 99.9f);  // Pressao interna (kgf/m2) -> 0NN.N
+
+        // 3. Obtem o timestamp corrente com precisao de milissegundos (HH:MM:SS.NNN - 12 chars)
+        ObterTimestampAtual(timestamp, sizeof(timestamp), true);
+
+        // 4. Monta a string no formato exato: TIPO/NSEQ/TZ1/TZ2/TZ3/VOL/PRES/TIMESTAMP (50 chars)
+        int len = std::snprintf(item.texto, sizeof(item.texto),
+            "1/%05d/%05.1f/%05.1f/%05.1f/%05.1f/%05.1f/%s",
+            nseq, tz1, tz2, tz3, vol, pres, timestamp);
+
+        if (len != TAM_MSG_SUPERVISORIO) {
+            LogConsolePrincipal("[SUPERVISORIO] ALERTA: Mensagem com tamanho invalido (%d chars): %s\n",
+                len, item.texto);
         }
 
-        // 8. Temporização provisória da Etapa 1: Sleep de 1000 ms
-        // (Na Etapa 2, será substituído por Waitable Timer de 500 ms sem Sleep)
+        // 5. Deposita a mensagem na Lista Circular 1 (bloqueia com aviso se estiver cheia)
+        if (!DepositarMensagemLista1(item, ctrl)) {
+            break; // Recebeu ESC enquanto aguardava
+        }
+
+        // 6. Incrementa o sequencial (volta ao valor zero apos alcancar 99999, conforme enunciado)
+        nseq++;
+        if (nseq > NSEQ_MAX) {
+            nseq = NSEQ_RESET;
+        }
+
+        // 7. Temporizacao provisoria da Etapa 1: Sleep de 1000 ms
         Sleep(TEMPO_ETAPA1_MS);
     }
 
-    std::printf("[%s] Thread finalizada de forma limpa.\n", ctrl->nomeTarefa);
+    LogConsolePrincipal("[%s] Thread finalizada de forma limpa.\n", ctrl->nomeTarefa);
     return nullptr;
 }

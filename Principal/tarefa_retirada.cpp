@@ -1,39 +1,34 @@
-#include "common.h"
+#include "tarefa_retirada.h"
+#include "lista_encadeada.h"
 #include <pthread.h>
+#include <cstdio>
 
-// Importação da função de consumo implementada no lista_encadeada.cpp
-extern bool RetirarMensagemLista1(ItemMensagem* itemDestino, HANDLE hEvTerm);
-
-// Assinatura padrão exigida pela biblioteca Pthreads
 void* ThreadRetirada(void* arg) {
-    // Cast obrigatório em C++ para aceder aos handles da tarefa
     ControleTarefa* controle = static_cast<ControleTarefa*>(arg);
-    ItemMensagem itemRecebido;
-
-    printf("[%s] Iniciada.\n", controle->nomeTarefa);
-
-    while (true) {
-        // 1. Verifica bloqueio da tecla 'r' e encerramento geral (ESC)
-        if (!AguardarPermissaoExecucaoOuTermino(controle->hEvRun, controle->hEvTerm, controle->nomeTarefa)) {
-            break; // Sai imediatamente do ciclo se ESC for premido
-        }
-
-        // 2. Aguarda e retira item (bloqueia automaticamente se a lista estiver vazia)
-        if (!RetirarMensagemLista1(&itemRecebido, controle->hEvTerm)) {
-            //printf("[LISTA  VAZIA! AGUARDANDO PRODUTORES] \n");
-            break; // ESC premido enquanto aguardava por mensagens
-        }
-
-        // 3. Exibe o conteúdo retirado (Etapa 1: saída no ecrã principal)
-        if (itemRecebido.tipo == TIPO_DADOS_PROCESSO) {
-            printf("[RETIRADA - PROC] %s\n", itemRecebido.texto);
-        }
-        else if (itemRecebido.tipo == TIPO_ESCALONAMENTO_PCP) {
-            printf("[RETIRADA - PCP ] %s\n", itemRecebido.texto);
-        }
-
+    if (!controle) {
+        LogConsolePrincipal("[RETIRADA_MSG] Erro: Ponteiro de controle nulo!\n");
+        return nullptr;
     }
 
-    printf("[%s] Encerrando thread...\n", controle->nomeTarefa);
+    ItemMensagem itemRecebido{};
+
+    LogConsolePrincipal("[%s] Thread iniciada com sucesso.\n", controle->nomeTarefa);
+
+    while (true) {
+        // Aguarda e retira item da Lista 1 (verifica internamente bloqueio da tecla 'r' e término ESC)
+        if (!RetirarMensagemLista1(&itemRecebido, controle)) {
+            break; // ESC acionado
+        }
+
+        // Exibe o conteudo retirado na console principal (requisito de certificacao da Etapa 1)
+        if (itemRecebido.tipo == TIPO_DADOS_PROCESSO) {
+            LogConsolePrincipal("[RETIRADA - PROC] %s\n", itemRecebido.texto);
+        }
+        else if (itemRecebido.tipo == TIPO_ESCALONAMENTO_PCP) {
+            LogConsolePrincipal("[RETIRADA - PCP ] %s\n", itemRecebido.texto);
+        }
+    }
+
+    LogConsolePrincipal("[%s] Thread finalizada de forma limpa.\n", controle->nomeTarefa);
     return nullptr;
 }

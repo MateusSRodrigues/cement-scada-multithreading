@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <stdarg.h>
 
 // Constantes de tamanho e limites
 #define TAM_MSG_SUPERVISORIO    50
@@ -23,6 +24,7 @@
 #define CAPACIDADE_LISTA_2      200
 
 #define NSEQ_MIN                1
+#define NSEQ_RESET              0
 #define NSEQ_MAX                99999
 
 #define TIPO_DADOS_PROCESSO     1
@@ -60,13 +62,13 @@
 #define SEM_L1_VAGAS            "Local\\SemLista1_Vagas"
 #define SEM_L1_ITENS            "Local\\SemLista1_Itens"
 
-// Objetos Lista 2 (Memoria Compartilhada)
+// Objetos Lista 2 (Memoria Compartilhada - Etapa 2)
 #define SHM_LISTA_2             "Local\\ShmListaCircular2"
 #define MTX_LISTA_2             "Local\\MtxListaCircular2"
 #define SEM_L2_VAGAS            "Local\\SemLista2_Vagas"
 #define SEM_L2_ITENS            "Local\\SemLista2_Itens"
 
-// IPC - Mailslots
+// IPC - Mailslots (Etapa 2)
 #define MAILSLOT_EXIB_PROC      "\\\\.\\mailslot\\SlotExibicaoProcesso"
 #define MAILSLOT_GEST_PROD      "\\\\.\\mailslot\\SlotGestaoProducao"
 #define CMD_IPC_LIMPAR_TELA     "CMD_CLS"
@@ -77,7 +79,7 @@ struct ItemMensagem {
     char texto[TAM_MAX_MSG_BUFFER];
 };
 
-// No e estrutura da Lista Encadeada (Substitui ListaCircular1)
+// No e estrutura da Lista Encadeada (Lista Circular 1 em memoria RAM)
 struct Node {
     ItemMensagem item;
     Node* next;
@@ -91,7 +93,7 @@ struct ListaEncadeada1 {
     ListaEncadeada1() : head(nullptr), tail(nullptr), count(0) {}
 };
 
-// Lista Circular 2 mantida como array (Ponteiros invalidam a memoria compartilhada entre processos)
+// Lista Circular 2 mantida como array para Memoria Compartilhada na Etapa 2
 struct ListaCircular2 {
     ItemMensagem buffer[CAPACIDADE_LISTA_2];
     int in;
@@ -118,9 +120,14 @@ static inline bool AguardarPermissaoExecucaoOuTermino(HANDLE hEvRun, HANDLE hEvT
         HANDLE hEventos[2] = { hEvTerm, hEvRun };
         DWORD resultado = WaitForMultipleObjects(2, hEventos, FALSE, INFINITE);
 
-        if (resultado == WAIT_OBJECT_0) {
+        if (resultado == WAIT_OBJECT_0 || resultado == WAIT_FAILED) {
             printf("[%s] Notificacao de TERMINO (ESC) recebida durante bloqueio. Encerrando...\n", nomeTarefa);
             fflush(stdout);
+            return false;
+        }
+
+        // Verifica novamente se o ESC foi acionado simultaneamente ao desbloqueio
+        if (WaitForSingleObject(hEvTerm, 0) == WAIT_OBJECT_0) {
             return false;
         }
 
